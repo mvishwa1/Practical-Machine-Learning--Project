@@ -1,0 +1,133 @@
+---
+title: "Practical Machine Learning: Course Project"
+author: "Vishwanath Mallikarjunan"
+date: "Sunday, February 22, 2015"
+output: html_document
+---
+
+
+#Objective
+From wearable devices, data has been collected from different accelerometers during the barbell lifts. Using a training data set which classifies each data set corresponding to a different barbell lift, to 5 different classes (A,B,C,D,E) which determine the quality of each barbell lift. 
+The following link gives the overall approach to data collection and analysis:
+http://groupware.les.inf.puc-rio.br/har
+
+  
+    
+#Methodology
+First we import the data and check for:
+    1. The different data columns and their respective data class
+    2. Inspecting for any missing data/NAs and prune the data
+```{r}
+setwd("C:/Users/mvishwa/Desktop")
+data=read.csv("pml-training.csv")
+str(data)
+```
+
+The first 6 columns seem to consist of Index, User Name, Timestamps which appear to give the timepoint at which data was collected, and a factor variable called new_window. We would remove these variables 
+
+```{r}
+data_filter_1 = data[,-c(1:6)]
+```
+
+
+
+We now check for columns with missing values by checking the column lengths of each column. Here we check for blanks,NA,#DIV/0!
+
+```{r}
+colLen=integer(dim(data_filter_1)[2])
+for(i in 1:dim(data_filter_1)[2]){
+  tmp = data_filter_1[,i]
+  l=length(which((tmp=="")|(tmp=="NA")|(tmp=="#DIV/0!")))
+  colLen[i] = length(data_filter_1[,i]) - l
+}
+colLen
+```
+
+
+
+We observe 33 columns with only 406 entries, and we would want to remove these
+
+```{r}
+data_filter_2 = data_filter_1[ , which(colLen==19622)]
+dim(data_filter_2)
+str(data_filter_2)
+```
+
+
+
+We still find NAs in some columns and remove these:
+
+```{r}
+colLen2 = integer(dim(data_filter_2)[2])
+for(i in 1:dim(data_filter_2)[2]){
+  tmp = data_filter_2[,i]
+  l = length(which(is.na(data_filter_2[,i])==TRUE))
+  colLen2[i] = length(data_filter_2[,i]) - l
+}
+colLen2
+colLen2[which(colLen2!=19622)]
+```
+
+
+
+We find 67 columns with only 406 valid entries and we would eliminate these
+
+```{r}
+data_filter_3=data_filter_2[,which(colLen2==19622)]
+```
+
+
+
+We now consider the data set cleaned up and ready for analysis. We now divide this data into training data and testing data in the ratio 2:1. We fit a model by constructing a random forest, and we check the results with the test set, through a Confusion Matrix
+
+```{r}
+library(caret)
+inTrain = createDataPartition(data_filter_3$classe,p=2/3,list=FALSE)
+training = data_filter_3[inTrain,]
+testing = data_filter_3[-inTrain,]
+
+library(randomForest)
+modFit = randomForest(classe ~.,data_filter_3)
+confusionMatrix(testing$classe,predict(modFit,testing))
+```
+
+
+
+We get an accuracy of 100%!
+
+Now, we proceed to predicting the Classe attribute for the test set. First we read the data from the ".csv" file, and then eliminate the columns corresponding the ones eliminated in the training data set. 
+
+```{r}
+test_data = read.csv("pml-testing.csv")
+test_filter = test_data[,-c(1:6)]
+test_filter_2 = test_filter[,which(colLen==19622)]
+test_filter_3 = test_filter_2[,which(colLen2==19622)]
+```
+
+
+
+We check if the columns of the filtered test data correspond to the ones in training:
+
+```{r}
+dim(test_filter_3)
+names(test_filter_3)== names(training)
+names(test_filter_3)[54]
+```
+
+
+We then predict the outcomes for the test data set, by excluding the final column
+
+```{r}
+predict(modFit,test_filter_3[,-54])
+```
+
+
+#Conclusion
+The detailed methodology of collection of data and the data analysis is given in the following research paper:
+http://groupware.les.inf.puc-rio.br/public/papers/2012.Ugulino.WearableComputing.HAR.Classifier.RIBBON.pdf
+
+There are 2 key takeaways:
+
+    1. In the publication, they have selected 17 key variables as predictors for constructing the model. Since there was no available explanation for the different columns in the training data set, we had to approach the data analysis without any available model correlating the data with the outcome variable
+    
+    2. The method of random forest for predicting the outcome has been used, which gives >99% accuracy. We have also used random forest, since we are not trying to decode the relationship between the predictors and the "Classe", but rather trying to come up with the best model which predicts "Classe"
